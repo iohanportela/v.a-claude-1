@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  * {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+@layer components {
+  /* Botão grande padrão, pensado para uso rápido com poucos toques */
+  .btn-touch {
+    @apply flex items-center justify-center gap-2 rounded-xl2 px-6 py-4 text-base font-semibold
+      transition-transform active:scale-95 disabled:opacity-40 disabled:active:scale-100;
+  }
+
+  .btn-primario {
+    @apply btn-touch bg-accent-600 text-base-950 hover:bg-accent-500;
+  }
+
+  .btn-secundario {
+    @apply btn-touch bg-base-800 text-base-50 hover:bg-base-700;
+  }
+
+  .btn-perigo {
+    @apply btn-touch bg-danger-600 text-base-50 hover:bg-danger-500;
+  }
+
+  .cartao {
+    @apply rounded-xl2 bg-base-900 border border-base-800 p-4;
+  }
+
+  .campo-input {
+    @apply w-full rounded-xl border border-base-700 bg-base-900 px-4 py-3 text-base-50
+      placeholder:text-base-400 focus:border-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-500/40;
+  }
+}
