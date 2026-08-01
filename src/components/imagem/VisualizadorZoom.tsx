@@ -224,8 +224,7 @@ export function VisualizadorZoom({ src, largura, altura, destaque }: Visualizado
               left: destaque.x,
               top: destaque.y,
               width: destaque.largura,
-              height: destaque.altura,
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)'
+              height: destaque.altura
             }}
             className="rounded-md border-[3px] border-accent-400"
           />
