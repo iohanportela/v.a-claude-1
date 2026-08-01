@@ -26,15 +26,35 @@ export const leiturasRepository = {
    * contínua e trocar de foto automaticamente quando necessário.
    */
   async listarParaNavegacao(mesaFiltro?: string): Promise<Leitura[]> {
-    const colecao = mesaFiltro
-      ? db.leituras.where('mesa').equals(mesaFiltro)
-      : db.leituras.toCollection();
+    if (!mesaFiltro) {
+      return db.leituras.toArray();
+    }
 
-    const leituras = await colecao.toArray();
-    return leituras.sort((a, b) => {
-      if (a.mesa !== b.mesa) return a.mesa.localeCompare(b.mesa, 'pt-BR', { numeric: true });
-      return a.ordem - b.ordem;
-    });
+    const mesaRegistro = await db.mesas.where('nome').equals(mesaFiltro.trim()).first();
+    if (!mesaRegistro) {
+      return [];
+    }
+
+    const lugares = await db.lugares.where('mesaId').equals(mesaRegistro.id).sortBy('numeroPosicao');
+    const leituras = await db.leituras.where('mesa').equals(mesaFiltro.trim()).toArray();
+    const leiturasPorFuncionario = new Map<string, Leitura>();
+
+    for (const leitura of leituras) {
+      if (leitura.funcionarioId) {
+        leiturasPorFuncionario.set(leitura.funcionarioId, leitura);
+      }
+    }
+
+    const ordenadas: Leitura[] = [];
+    for (const lugar of lugares) {
+      if (!lugar.funcionarioId) continue;
+      const leitura = leiturasPorFuncionario.get(lugar.funcionarioId);
+      if (leitura) {
+        ordenadas.push(leitura);
+      }
+    }
+
+    return ordenadas;
   },
 
   /**

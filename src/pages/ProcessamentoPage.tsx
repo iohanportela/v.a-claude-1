@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMesas, useMapaMesa, useLayoutVisualMesa } from '@hooks/useFuncionarios';
 import { fotosRepository, funcionariosRepository, lugaresRepository, mesasRepository } from '@database/index';
 import { obterDimensoesImagem, fileParaBlob } from '@utils/imagem';
-import { processarFoto, resolverPendencia } from '@services/processamentoService';
+import { processarFoto, resolverPendencia, type ResultadoProcessamentoFoto } from '@services/processamentoService';
 import { useProcessamentoStore } from '@hooks/useProcessamentoStore';
 import { useUiStore } from '@hooks/useUiStore';
 import { Modal } from '@components/common/Modal';
@@ -19,6 +19,10 @@ export function ProcessamentoPage(): JSX.Element {
 
   const [mesaAlvo, setMesaAlvo] = useState<string>('');
   const [posicaoParaCadastro, setPosicaoParaCadastro] = useState<number | null>(null);
+  const [debugInfo, setDebugInfo] = useState<ResultadoProcessamentoFoto['debug'] | null>(null);
+  const [debugArquivo, setDebugArquivo] = useState<
+    { url: string; nome: string; tamanho: number; tipo: string } | null
+  >(null);
 
   const fotosNaoProcessadas = useLiveQuery(() => fotosRepository.listarNaoProcessadas(), [], []) ?? [];
 
@@ -43,6 +47,10 @@ export function ProcessamentoPage(): JSX.Element {
     const arquivos = Array.from(evento.target.files ?? []);
     if (arquivos.length === 0 || !mesaAlvo) return;
 
+    const ultimoArquivo = arquivos[arquivos.length - 1]!;
+    const url = URL.createObjectURL(ultimoArquivo);
+    setDebugArquivo({ url, nome: ultimoArquivo.name, tamanho: ultimoArquivo.size, tipo: ultimoArquivo.type });
+
     for (const arquivo of arquivos) {
       const blob = fileParaBlob(arquivo);
       const { largura, altura } = await obterDimensoesImagem(blob);
@@ -61,11 +69,23 @@ export function ProcessamentoPage(): JSX.Element {
 
     reiniciar();
     iniciar(fotos.length);
+    setDebugInfo(null);
+
+    console.log('[PROCESSAMENTO] Iniciando processamento de fotos pendentes:', fotos.length);
 
     for (const foto of fotos) {
+      const arquivoInfo = {
+        fotoId: foto.id,
+        mesa: foto.mesa,
+        tamanho: foto.imagem.size,
+        tipo: foto.imagem.type || '(não informado)'
+      };
+      console.log('[PROCESSAMENTO] Arquivo recebido:', arquivoInfo);
+
       try {
         const resultado = await processarFoto(foto);
         registrarResultado(resultado);
+        setDebugInfo(resultado.debug ?? null);
         if (resultado.pendencias.length > 0) {
           enfileirarPendencias(resultado.pendencias);
         }
@@ -91,6 +111,24 @@ export function ProcessamentoPage(): JSX.Element {
     setPosicaoParaCadastro(posicao);
   }
 
+  async function copiarResultadoDebug(): Promise<void> {
+    if (!debugInfo) {
+      mostrarToast('Nenhum resultado de debug disponível para copiar.', 'info');
+      return;
+    }
+
+    try {
+      const textoDebug = JSON.stringify(debugInfo, null, 2);
+      await navigator.clipboard.writeText(textoDebug);
+      mostrarToast('Resultado de debug copiado para a área de transferência.', 'sucesso');
+    } catch (erro) {
+      mostrarToast(
+        'Não foi possível copiar o resultado de debug. Verifique se o navegador permite acesso à área de transferência.',
+        'erro'
+      );
+    }
+  }
+
   async function salvarNovoFuncionarioDaPendencia(dados: NovoFuncionario): Promise<void> {
     if (!pendenciaAtual || posicaoParaCadastro === null) return;
 
@@ -109,6 +147,17 @@ export function ProcessamentoPage(): JSX.Element {
   }
 
   const totalLeiturasResultado = resultados.reduce((soma, r) => soma + r.leiturasRegistradas.length, 0);
+  const registrosParser = debugInfo?.registrosParser ?? [];
+  const registrosValidos = registrosParser.filter((registro) => registro.registroValido);
+  const motivoSemSalvar = !debugInfo
+    ? 'Nenhum debug disponível ainda.'
+    : debugInfo.linhasBrutas.length === 0
+    ? 'OCR não retornou linhas reconhecíveis.'
+    : registrosParser.length === 0
+    ? 'Parser não encontrou registros.'
+    : registrosValidos.length === 0
+    ? 'Todos os registros foram descartados pelo parser.'
+    : null;
 
   return (
     <div className="flex flex-col gap-5 px-4 py-6">
@@ -177,7 +226,7 @@ export function ProcessamentoPage(): JSX.Element {
 
         <button
           type="button"
-          onClick={() => void iniciarProcessamento(fotosNaoProcessadas)}
+          onClick={async () => await iniciarProcessamento(fotosNaoProcessadas)}
           disabled={processando || fotosNaoProcessadas.length === 0}
           className="btn-primario mt-4 w-full"
         >
@@ -192,6 +241,67 @@ export function ProcessamentoPage(): JSX.Element {
           <p className="text-base-400">
             {resultados.reduce((s, r) => s + r.duplicadasIgnoradas, 0)} matrículas duplicadas ignoradas
           </p>
+        </div>
+      ) : null}
+
+      {debugInfo ? (
+        <div className="cartao bg-base-950 border border-base-800">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-base-200">Debug de OCR</h2>
+            <button
+              type="button"
+              onClick={() => void copiarResultadoDebug()}
+              className="btn-secundario rounded px-3 py-2 text-xs font-semibold"
+            >
+              Copiar debug
+            </button>
+          </div>
+          {debugArquivo ? (
+            <div className="mb-4">
+              <p className="text-xs text-base-400">Imagem recebida:</p>
+              <div className="mt-2 flex flex-col gap-2 text-sm text-base-300">
+                <span>Nome: {debugArquivo.nome}</span>
+                <span>Tamanho: {debugArquivo.tamanho} bytes</span>
+                <span>Tipo: {debugArquivo.tipo || 'desconhecido'}</span>
+              </div>
+              <img src={debugArquivo.url} alt="Imagem de debug" className="mt-3 max-h-40 w-auto rounded border border-base-700 object-contain" />
+            </div>
+          ) : null}
+
+          <div className="mb-4">
+            <p className="text-xs text-base-400">OCR TEXTO BRUTO:</p>
+            <pre className="mt-2 rounded bg-base-900 p-3 text-[0.8rem] text-base-100">
+              {debugInfo.textoBruto ?? '(nenhum texto bruto retornado)'}
+            </pre>
+            <p className="mt-2 text-sm text-base-400">
+              Quantidade de palavras encontradas: {debugInfo.palavras?.length ?? 0}
+            </p>
+          </div>
+
+          <div className="mb-4">
+            <p className="text-xs text-base-400">REGISTROS ENCONTRADOS:</p>
+            <pre className="mt-2 rounded bg-base-900 p-3 text-[0.8rem] text-base-100">
+              {JSON.stringify(
+                registrosParser.map((registro) => ({
+                  matricula: registro.matricula,
+                  nome: registro.nome,
+                  produtividade: registro.percentual,
+                  valido: registro.registroValido,
+                  motivoDescartado: registro.motivoDescartado
+                })),
+                null,
+                2
+              )}
+            </pre>
+          </div>
+
+          <div>
+            <p className="text-xs text-base-400">REGISTROS QUE SERÃO SALVOS:</p>
+            <p className="mt-2 text-sm text-base-100">quantidade: {registrosValidos.length}</p>
+            {registrosValidos.length === 0 && motivoSemSalvar ? (
+              <p className="mt-1 text-sm text-warning-400">{motivoSemSalvar}</p>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

@@ -25,7 +25,7 @@ export function HomePage(): JSX.Element {
   const totalFuncionarios = useLiveQuery(() => db.funcionarios.count(), [], 0) ?? 0;
   const totalMesas = useLiveQuery(() => db.mesas.count(), [], 0) ?? 0;
   const fotosPendentes = useLiveQuery(
-    () => db.fotos.where('processada').equals(0).count(),
+    () => db.fotos.filter((foto) => !foto.processada).count(),
     [],
     0
   ) ?? 0;

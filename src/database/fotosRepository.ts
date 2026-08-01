@@ -12,7 +12,7 @@ export const fotosRepository = {
   },
 
   async listarNaoProcessadas(): Promise<Foto[]> {
-    return db.fotos.where('processada').equals(0).sortBy('capturadaEm');
+    return db.fotos.filter((foto) => !foto.processada).sortBy('capturadaEm');
   },
 
   async criar(dados: NovaFoto): Promise<Foto> {

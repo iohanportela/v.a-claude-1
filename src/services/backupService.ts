@@ -1,12 +1,28 @@
 import { db } from '@database/db';
-import type { Funcionario, Foto, Leitura } from '@domain/domain';
+import type { Funcionario, Foto, Leitura, Mesa, Lugar } from '@domain/domain';
 
-interface BackupArquivo {
+interface BackupArquivoV1 {
   versao: 1;
   exportadoEm: number;
   funcionarios: Funcionario[];
   fotos: Array<Omit<Foto, 'imagem'> & { imagemBase64: string; imagemTipo: string }>;
   leituras: Leitura[];
+}
+
+interface BackupArquivoV2 {
+  versao: 2;
+  exportadoEm: number;
+  funcionarios: Funcionario[];
+  fotos: Array<Omit<Foto, 'imagem'> & { imagemBase64: string; imagemTipo: string }>;
+  leituras: Leitura[];
+  mesas: Mesa[];
+  lugares: Lugar[];
+}
+
+type BackupArquivo = BackupArquivoV1 | BackupArquivoV2;
+
+function isBackupArquivoV2(backup: BackupArquivo): backup is BackupArquivoV2 {
+  return backup.versao === 2 && 'mesas' in backup && 'lugares' in backup;
 }
 
 async function blobParaDataUrl(blob: Blob): Promise<string> {
@@ -44,12 +60,17 @@ export async function exportarBanco(): Promise<Blob> {
     })
   );
 
+  const mesas = await db.mesas.toArray();
+  const lugares = await db.lugares.toArray();
+
   const backup: BackupArquivo = {
-    versao: 1,
+    versao: 2,
     exportadoEm: Date.now(),
     funcionarios,
     fotos: fotosSerializadas,
-    leituras
+    leituras,
+    mesas,
+    lugares
   };
 
   return new Blob([JSON.stringify(backup)], { type: 'application/json' });
@@ -66,7 +87,7 @@ export async function importarBanco(arquivo: File): Promise<void> {
   const texto = await arquivo.text();
   const backup = JSON.parse(texto) as BackupArquivo;
 
-  if (backup.versao !== 1) {
+  if (backup.versao !== 1 && backup.versao !== 2) {
     throw new Error('Versão de backup não suportada.');
   }
 
@@ -80,22 +101,31 @@ export async function importarBanco(arquivo: File): Promise<void> {
     processada: f.processada
   }));
 
-  await db.transaction('rw', db.funcionarios, db.fotos, db.leituras, async () => {
+  await db.transaction('rw', db.funcionarios, db.fotos, db.leituras, db.mesas, db.lugares, async () => {
     await db.funcionarios.clear();
     await db.fotos.clear();
     await db.leituras.clear();
+    await db.mesas.clear();
+    await db.lugares.clear();
 
     await db.funcionarios.bulkAdd(backup.funcionarios);
     await db.fotos.bulkAdd(fotosReconstruidas);
     await db.leituras.bulkAdd(backup.leituras);
+
+    if (isBackupArquivoV2(backup)) {
+      await db.mesas.bulkAdd(backup.mesas);
+      await db.lugares.bulkAdd(backup.lugares);
+    }
   });
 }
 
 /** Apaga permanentemente todos os dados do aplicativo. */
 export async function limparBanco(): Promise<void> {
-  await db.transaction('rw', db.funcionarios, db.fotos, db.leituras, async () => {
+  await db.transaction('rw', db.funcionarios, db.fotos, db.leituras, db.mesas, db.lugares, async () => {
     await db.funcionarios.clear();
     await db.fotos.clear();
     await db.leituras.clear();
+    await db.mesas.clear();
+    await db.lugares.clear();
   });
 }

@@ -1,6 +1,6 @@
 import { createWorker, type Worker, PSM } from 'tesseract.js';
 import type { OcrService } from './OcrService';
-import type { LinhaOcrBruta, BoundingBox } from '@domain/domain';
+import type { LinhaOcrBruta, BoundingBox, OcrResultado } from '@domain/domain';
 
 /**
  * Motor de OCR 100% client-side baseado em Tesseract.js (WebAssembly).
@@ -33,27 +33,53 @@ export class TesseractOcrService implements OcrService {
   }
 
   async reconhecerLinhas(imagem: Blob): Promise<LinhaOcrBruta[]> {
+    return (await this.reconhecerLinhasComDebug(imagem)).linhas;
+  }
+
+  async reconhecerLinhasComDebug(imagem: Blob): Promise<OcrResultado> {
     const worker = await this.obterWorker();
     const url = URL.createObjectURL(imagem);
 
     try {
       const { data } = await worker.recognize(url, {}, { blocks: true });
       const linhas: LinhaOcrBruta[] = [];
+      const blocos = data.blocks?.map((bloco) => ({
+        texto: bloco.text?.trim() ?? '',
+        boundingBox: converterBoundingBox(bloco.bbox),
+        confidence: bloco.confidence / 100
+      })) ?? [];
+      const palavras: OcrResultado['palavras'] = [];
 
       for (const bloco of data.blocks ?? []) {
         for (const paragrafo of bloco.paragraphs ?? []) {
           for (const linha of paragrafo.lines ?? []) {
             const bbox = converterBoundingBox(linha.bbox);
+            const texto = linha.text.trim();
             linhas.push({
-              texto: linha.text.trim(),
+              texto,
               boundingBox: bbox,
               confidence: linha.confidence / 100
             });
+
+            for (const palavra of linha.words ?? []) {
+              const palavraTexto = palavra.text.trim();
+              if (!palavraTexto) continue;
+              palavras.push({
+                texto: palavraTexto,
+                boundingBox: converterBoundingBox(palavra.bbox),
+                confidence: palavra.confidence / 100
+              });
+            }
           }
         }
       }
 
-      return linhas.filter((l) => l.texto.length > 0);
+      return {
+        textoBruto: data.text?.trim() ?? '',
+        linhas: linhas.filter((l) => l.texto.length > 0),
+        blocos,
+        palavras
+      };
     } finally {
       URL.revokeObjectURL(url);
     }

@@ -98,6 +98,25 @@ export interface LinhaOcrBruta {
   confidence: number;
 }
 
+export interface OcrDebugPalavra {
+  texto: string;
+  boundingBox: BoundingBox;
+  confidence: number;
+}
+
+export interface OcrDebugBloco {
+  texto: string;
+  boundingBox: BoundingBox;
+  confidence: number;
+}
+
+export interface OcrResultado {
+  linhas: LinhaOcrBruta[];
+  textoBruto?: string;
+  blocos?: OcrDebugBloco[];
+  palavras?: OcrDebugPalavra[];
+}
+
 /** Resultado do parser que extrai matrícula/nome/percentual/valor de uma LinhaOcrBruta. */
 export interface LinhaOcrParseada {
   matricula: string | null;

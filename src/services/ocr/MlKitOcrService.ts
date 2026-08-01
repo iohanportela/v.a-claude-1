@@ -1,7 +1,7 @@
 import { Script, TextRecognition } from '@capacitor-mlkit/text-recognition';
 import { Capacitor } from '@capacitor/core';
 import type { OcrService } from './OcrService';
-import type { LinhaOcrBruta, BoundingBox } from '@domain/domain';
+import type { LinhaOcrBruta, BoundingBox, OcrResultado } from '@domain/domain';
 import { blobParaBase64 } from '@utils/imagem';
 
 /**
@@ -18,6 +18,10 @@ export class MlKitOcrService implements OcrService {
   }
 
   async reconhecerLinhas(imagem: Blob): Promise<LinhaOcrBruta[]> {
+    return (await this.reconhecerLinhasComDebug(imagem)).linhas;
+  }
+
+  async reconhecerLinhasComDebug(imagem: Blob): Promise<OcrResultado> {
     const base64 = await blobParaBase64(imagem);
 
     const resultado = await TextRecognition.processImage({
@@ -26,23 +30,50 @@ export class MlKitOcrService implements OcrService {
     });
 
     const linhas: LinhaOcrBruta[] = [];
+    const blocos = (resultado.blocks ?? [])
+      .map((bloco) => {
+        const bbox = converterBoundingBox(bloco.cornerPoints);
+        if (!bbox) return null;
+        return {
+          texto: bloco.text ?? '',
+          boundingBox: bbox,
+          confidence: 0.85
+        };
+      })
+      .filter((item): item is { texto: string; boundingBox: BoundingBox; confidence: number } => item !== null);
+    const palavras: OcrResultado['palavras'] = [];
 
     for (const bloco of resultado.blocks ?? []) {
       for (const linha of bloco.lines ?? []) {
         const bbox = converterBoundingBox(linha.cornerPoints);
         if (!bbox) continue;
 
+        const texto = linha.text ?? '';
         linhas.push({
-          texto: linha.text,
+          texto,
           boundingBox: bbox,
-          // ML Kit não retorna confidence por linha na maioria das versões;
-          // usamos 0.85 como estimativa conservadora.
           confidence: 0.85
         });
+
+        for (const elemento of linha.elements ?? []) {
+          if (!elemento.text) continue;
+          const palavraBbox = converterBoundingBox(elemento.cornerPoints);
+          if (!palavraBbox) continue;
+          palavras.push({
+            texto: elemento.text,
+            boundingBox: palavraBbox,
+            confidence: 0.85
+          });
+        }
       }
     }
 
-    return linhas;
+    return {
+      textoBruto: resultado.text ?? '',
+      linhas,
+      blocos,
+      palavras
+    };
   }
 }
 
