@@ -21,7 +21,7 @@ export function encontrarLinhaCompleta(
   // Tolerância proporcional à altura da própria palavra-alvo: linhas de
   // texto costumam ter todas as palavras com altura parecida, então uma
   // fração dessa altura é um limiar razoável para "mesma linha".
-  const tolerancia = Math.max(palavraAlvo.boundingBox.altura * 0.6, 6);
+  const tolerancia = Math.max(palavraAlvo.boundingBox.altura * 0.85, 10);
 
   const palavrasDaLinha = todasPalavras
     .filter((p) => p.imagemId === palavraAlvo.imagemId)
@@ -36,9 +36,10 @@ export function encontrarLinhaCompleta(
   }
 
   const boundingBox = unirBoundingBoxes(palavrasDaLinha.map((p) => p.boundingBox));
+  const boundingBoxExpandido = expandirBoundingBox(boundingBox, 8, 4);
   const texto = palavrasDaLinha.map((p) => p.texto).join(' ');
 
-  return { boundingBox, texto, palavras: palavrasDaLinha };
+  return { boundingBox: boundingBoxExpandido, texto, palavras: palavrasDaLinha };
 }
 
 function centroVertical(box: BoundingBox): number {
@@ -51,4 +52,13 @@ function unirBoundingBoxes(boxes: BoundingBox[]): BoundingBox {
   const maxX = Math.max(...boxes.map((b) => b.x + b.largura));
   const maxY = Math.max(...boxes.map((b) => b.y + b.altura));
   return { x: minX, y: minY, largura: maxX - minX, altura: maxY - minY };
+}
+
+function expandirBoundingBox(box: BoundingBox, margemX: number, margemY: number): BoundingBox {
+  return {
+    x: Math.max(0, box.x - margemX),
+    y: Math.max(0, box.y - margemY),
+    largura: box.largura + margemX * 2,
+    altura: box.altura + margemY * 2
+  };
 }

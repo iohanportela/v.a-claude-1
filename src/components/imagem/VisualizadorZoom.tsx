@@ -10,7 +10,7 @@ interface VisualizadorZoomProps {
 }
 
 const ESCALA_MIN = 0.5;
-const ESCALA_MAX = 8;
+const ESCALA_MAX = 4;
 
 /**
  * Visualizador de imagem com zoom e arraste controlados por ponteiro
@@ -56,7 +56,11 @@ export function VisualizadorZoom({ src, largura, altura, destaque }: Visualizado
 
     const { width: cw, height: ch } = container.getBoundingClientRect();
     const escalaCaber = Math.min(cw / largura, ch / altura);
-    const escala = Math.min(ESCALA_MAX, Math.max(escalaCaber * 2.2, 2));
+
+    const escalaHorizontal = box.largura > 0 ? (cw * 0.7) / box.largura : ESCALA_MAX;
+    const escalaVertical = box.altura > 0 ? (ch * 0.5) / box.altura : ESCALA_MAX;
+    const escalaFoco = Math.min(escalaHorizontal, escalaVertical);
+    const escala = Math.min(ESCALA_MAX, Math.max(escalaCaber, Math.min(escalaFoco, escalaCaber * 1.4)));
 
     const cx = box.x + box.largura / 2;
     const cy = box.y + box.altura / 2;
