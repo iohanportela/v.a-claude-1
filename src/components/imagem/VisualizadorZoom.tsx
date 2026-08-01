@@ -226,7 +226,7 @@ export function VisualizadorZoom({ src, largura, altura, destaque }: Visualizado
               width: destaque.largura,
               height: destaque.altura
             }}
-            className="rounded-md border-[3px] border-accent-400"
+            className="rounded-md border-[10px] border-accent-400"
           />
         ) : null}
       </div>
