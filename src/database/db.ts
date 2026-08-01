@@ -1,96 +1,52 @@
 import Dexie, { type Table } from 'dexie';
-import { v4 as uuid } from 'uuid';
-import type { Funcionario, Foto, Leitura, Mesa, Lugar } from '@domain/domain';
+import type { Imagem, Palavra } from '@domain/domain';
 
 /**
  * Banco local único do aplicativo. Todo armazenamento é local via IndexedDB
  * (através do Dexie). Nenhum dado é enviado para qualquer servidor.
+ *
+ * Histórico de versões:
+ * v1: schema original de funcionário com mesa/posição embutidos.
+ * v2: Mesa/Lugar viram tabelas próprias, funcionários independentes.
+ * v3 (atual): projeto pivotado para buscador de imagens com OCR. Todo o
+ *     domínio anterior (funcionários, mesas, lugares, leituras de
+ *     produtividade) não tem equivalente no novo modelo, então essas
+ *     tabelas são removidas — Dexie apaga automaticamente qualquer
+ *     tabela que não apareça no `.stores()` de uma versão nova. Só
+ *     restam `imagens` (as fotos importadas) e `palavras` (cada palavra
+ *     reconhecida pelo OCR, com sua posição).
  */
 export class ProdutividadeDatabase extends Dexie {
-  funcionarios!: Table<Funcionario, string>;
-  fotos!: Table<Foto, string>;
-  leituras!: Table<Leitura, string>;
-  mesas!: Table<Mesa, string>;
-  lugares!: Table<Lugar, string>;
+  imagens!: Table<Imagem, string>;
+  palavras!: Table<Palavra, string>;
 
   constructor() {
     super('produtividade-camarao-db');
 
     this.version(1).stores({
-      // matricula é índice único (prefixo &); mesa+posicao é índice composto
-      // usado para renderizar o mapa da mesa rapidamente.
       funcionarios: 'id, &matricula, mesa, [mesa+posicao], nome',
       fotos: 'id, mesa, capturadaEm, processada',
       leituras: 'id, fotoId, mesa, matricula, funcionarioId, ordem, criadaEm'
     });
 
-    this.version(2)
-      .stores({
-        mesas: 'id, &nome, criadoEm, atualizadoEm',
-        lugares: 'id, [mesaId+numeroPosicao], funcionarioId',
-        funcionarios: 'id, &matricula, criadoEm, atualizadoEm',
-        fotos: 'id, mesa, mesaId, capturadaEm, processada',
-        leituras: 'id, fotoId, mesa, matricula, funcionarioId, ordem, criadaEm'
-      })
-      .upgrade(async (trans) => {
-        const antigos = (await trans.table('funcionarios').toArray()) as Array<
-          Funcionario & { mesa?: string; posicao?: number }
-        >;
+    this.version(2).stores({
+      mesas: 'id, nome',
+      lugares: 'id, mesaId, [mesaId+numeroPosicao], funcionarioId',
+      funcionarios: 'id, &matricula, nome',
+      fotos: 'id, mesaId, capturadaEm, processada',
+      leituras: 'id, fotoId, mesaId, matricula, funcionarioId, criadaEm'
+    });
 
-        const mesasCriadas = new Map<string, Mesa>();
-
-        for (const item of antigos) {
-          const mesaNome = item.mesa?.trim();
-          const posicao = item.posicao;
-          if (!mesaNome || typeof posicao !== 'number' || posicao < 1 || posicao > 24) {
-            continue;
-          }
-          if (!mesasCriadas.has(mesaNome)) {
-            mesasCriadas.set(mesaNome, {
-              id: uuid(),
-              nome: mesaNome,
-              criadoEm: Date.now(),
-              atualizadoEm: Date.now()
-            });
-          }
-        }
-
-        if (mesasCriadas.size > 0) {
-          await trans.table('mesas').bulkAdd(Array.from(mesasCriadas.values()));
-        }
-
-        const lugares: Lugar[] = [];
-        for (const mesa of mesasCriadas.values()) {
-          for (let numeroPosicao = 1; numeroPosicao <= 24; numeroPosicao++) {
-            lugares.push({
-              id: uuid(),
-              mesaId: mesa.id,
-              numeroPosicao,
-              funcionarioId: null
-            });
-          }
-        }
-
-        const posicoesOcupadas = new Set<string>();
-        for (const item of antigos) {
-          const mesaNome = item.mesa?.trim();
-          const posicao = item.posicao;
-          if (!mesaNome || typeof posicao !== 'number' || posicao < 1 || posicao > 24) continue;
-          const mesa = mesasCriadas.get(mesaNome);
-          if (!mesa) continue;
-          const chave = `${mesa.id}:${posicao}`;
-          if (posicoesOcupadas.has(chave)) continue;
-          posicoesOcupadas.add(chave);
-          const lugar = lugares.find((l) => l.mesaId === mesa.id && l.numeroPosicao === posicao);
-          if (lugar) {
-            lugar.funcionarioId = item.id;
-          }
-        }
-
-        if (lugares.length > 0) {
-          await trans.table('lugares').bulkAdd(lugares);
-        }
-      });
+    this.version(3).stores({
+      // null remove a tabela — todo o domínio de funcionário/mesa/produtividade sai.
+      mesas: null,
+      lugares: null,
+      funcionarios: null,
+      fotos: null,
+      leituras: null,
+      imagens: 'id, nome, importadaEm, ocrProcessado',
+      palavras: 'id, imagemId, textoNormalizado, [imagemId+textoNormalizado]'
+    });
   }
 }
 

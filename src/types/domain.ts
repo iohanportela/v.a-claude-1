@@ -1,65 +1,14 @@
 /**
- * Tipos centrais do domínio do aplicativo de produtividade.
- * Toda a aplicação depende destes contratos — mudanças aqui se propagam
- * para database, services, hooks e components.
+ * Tipos centrais do domínio do aplicativo — versão simplificada.
+ *
+ * O app é, na essência, um buscador de imagens com OCR: importa fotos,
+ * roda o OCR UMA ÚNICA VEZ no momento da importação, guarda todas as
+ * palavras reconhecidas com sua posição na imagem, e depois disso toda
+ * busca acontece só sobre esses dados já salvos — nunca mais roda OCR
+ * de novo na mesma imagem.
  */
 
-/** Cada mesa possui exatamente 24 posições fixas. */
-export const POSICOES_POR_MESA = 24 as const;
-
-/** Disposição visual fixa da mesa: fileira superior 12→1, fileira inferior 13→24. */
-export const LAYOUT_MESA: readonly number[][] = [
-  [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
-  [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
-] as const;
-
-export interface Mesa {
-  id: string;
-  nome: string;
-  criadoEm: number;
-  atualizadoEm: number;
-}
-
-export type NovaMesa = Omit<Mesa, 'id' | 'criadoEm' | 'atualizadoEm'>;
-
-export interface Lugar {
-  id: string;
-  mesaId: string;
-  numeroPosicao: number;
-  funcionarioId: string | null;
-}
-
-export type NovoLugar = Omit<Lugar, 'id'>;
-
-export interface Funcionario {
-  /** UUID interno, chave primária. */
-  id: string;
-  /** Identificador único do sistema da empresa. Índice único no banco. */
-  matricula: string;
-  nome: string;
-  criadoEm: number;
-  atualizadoEm: number;
-}
-
-export type NovoFuncionario = Omit<Funcionario, 'id' | 'criadoEm' | 'atualizadoEm'>;
-
-/** Uma foto da tela do sistema da empresa, referente a uma mesa. */
-export interface Foto {
-  id: string;
-  mesa: string;
-  mesaId?: string;
-  /** Imagem armazenada como Blob local (IndexedDB suporta Blob nativamente). */
-  imagem: Blob;
-  largura: number;
-  altura: number;
-  capturadaEm: number;
-  /** Se o OCR desta foto já foi processado. */
-  processada: boolean;
-}
-
-export type NovaFoto = Omit<Foto, 'id' | 'capturadaEm' | 'processada'>;
-
-/** Retângulo delimitador em coordenadas de pixel da foto original. */
+/** Retângulo delimitador em coordenadas de pixel da imagem original. */
 export interface BoundingBox {
   x: number;
   y: number;
@@ -67,76 +16,58 @@ export interface BoundingBox {
   altura: number;
 }
 
-/**
- * Uma linha reconhecida pelo OCR em uma foto, antes ou depois de
- * ser vinculada a um Funcionario cadastrado.
- */
-export interface Leitura {
+export interface Imagem {
   id: string;
-  fotoId: string;
-  mesa: string;
-  matricula: string;
-  nomeReconhecido: string;
-  percentual: number;
-  valor: number | null;
-  boundingBox: BoundingBox;
-  /** Confiança média do OCR para esta linha, de 0 a 1. */
-  confidence: number;
-  /** Preenchido após a leitura ser vinculada a um funcionário cadastrado. */
-  funcionarioId: string | null;
-  /** Posição de ranking dentro da foto (1 = maior produtividade). */
-  ordem: number;
-  criadaEm: number;
+  /** Nome de exibição (ex.: nome do arquivo original, ou "Foto 1"). */
+  nome: string;
+  imagem: Blob;
+  largura: number;
+  altura: number;
+  importadaEm: number;
+  /** Sempre true depois da importação — o OCR só roda uma vez. */
+  ocrProcessado: boolean;
 }
 
-export type NovaLeitura = Omit<Leitura, 'id' | 'criadaEm'>;
+export type NovaImagem = Omit<Imagem, 'id' | 'importadaEm' | 'ocrProcessado'>;
 
-/** Linha crua retornada por um motor de OCR, antes do parsing de domínio. */
+/** Uma palavra individual reconhecida pelo OCR, já persistida. */
+export interface Palavra {
+  id: string;
+  imagemId: string;
+  texto: string;
+  /** Minúsculo e sem acento — usado para a busca ignorar caixa/acentuação. */
+  textoNormalizado: string;
+  boundingBox: BoundingBox;
+  confidence: number;
+}
+
+export type NovaPalavra = Omit<Palavra, 'id'>;
+
+/** Linha crua retornada por um motor de OCR, antes de virar Palavra persistida. */
 export interface LinhaOcrBruta {
   texto: string;
   boundingBox: BoundingBox;
   confidence: number;
+  /**
+   * Bounding box de cada palavra individual dentro da linha, quando o
+   * motor de OCR fornece essa granularidade (ML Kit e Tesseract.js
+   * fornecem). É isso que vira, uma a uma, um registro em `palavras`.
+   */
+  palavras?: PalavraOcrBruta[];
 }
 
-export interface OcrDebugPalavra {
+export interface PalavraOcrBruta {
   texto: string;
   boundingBox: BoundingBox;
   confidence: number;
 }
 
-export interface OcrDebugBloco {
-  texto: string;
-  boundingBox: BoundingBox;
-  confidence: number;
-}
-
-export interface OcrResultado {
-  linhas: LinhaOcrBruta[];
-  textoBruto?: string;
-  blocos?: OcrDebugBloco[];
-  palavras?: OcrDebugPalavra[];
-}
-
-/** Resultado do parser que extrai matrícula/nome/percentual/valor de uma LinhaOcrBruta. */
-export interface LinhaOcrParseada {
-  matricula: string | null;
-  nome: string | null;
-  percentual: number | null;
-  valor: number | null;
-  boundingBox: BoundingBox;
-  confidence: number;
-  brutaOriginal: string;
-}
-
-export interface MapaMesaPosicao {
-  lugarId: string;
-  posicao: number;
-  ocupada: boolean;
-  funcionario: Funcionario | null;
-}
-
-export interface EstadoNavegacao {
-  leituraAtualId: string | null;
-  indiceAtual: number;
-  totalLeituras: number;
+/** Um resultado de busca: uma palavra que bateu, já com a linha inteira calculada ao redor dela. */
+export interface ResultadoBusca {
+  imagemId: string;
+  palavra: Palavra;
+  /** Bounding box da linha inteira (palavra + vizinhas no mesmo eixo Y), para destacar no Visualizador. */
+  boundingBoxLinha: BoundingBox;
+  /** Texto completo da linha reconstruída, para exibir na lista de resultados. */
+  textoLinha: string;
 }

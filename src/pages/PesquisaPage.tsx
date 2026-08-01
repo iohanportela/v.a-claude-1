@@ -1,26 +1,15 @@
 import { useNavigate } from 'react-router-dom';
-import { usePesquisaFuncionarios } from '@hooks/useFuncionarios';
-import { leiturasRepository } from '@database/index';
-import { useNavegacaoStore } from '@hooks/useNavegacaoStore';
-import { useUiStore } from '@hooks/useUiStore';
+import { usePesquisa } from '@hooks/usePesquisa';
+import { useImagem } from '@hooks/useImagens';
+import { MiniaturaImagem } from '@components/imagem/MiniaturaImagem';
+import type { ResultadoBusca } from '@domain/domain';
 
 export function PesquisaPage(): JSX.Element {
-  const { termo, setTermo, resultados } = usePesquisaFuncionarios();
+  const { termo, setTermo, resultados, buscando } = usePesquisa();
   const navigate = useNavigate();
-  const definirLista = useNavegacaoStore((e) => e.definirLista);
-  const mostrarToast = useUiStore((e) => e.mostrarToast);
 
-  async function abrirNaNavegacao(funcionarioId: string): Promise<void> {
-    const leituras = await leiturasRepository.listarParaNavegacao();
-    const indice = leituras.findIndex((l) => l.funcionarioId === funcionarioId);
-
-    if (indice === -1) {
-      mostrarToast('Este funcionário ainda não possui leitura de produtividade processada.', 'info');
-      return;
-    }
-
-    definirLista(leituras, indice);
-    navigate('/navegacao');
+  function abrirResultado(resultado: ResultadoBusca): void {
+    navigate(`/imagem/${resultado.imagemId}?palavra=${resultado.palavra.id}`);
   }
 
   return (
@@ -31,32 +20,50 @@ export function PesquisaPage(): JSX.Element {
 
       <input
         className="campo-input"
-        placeholder="Nome ou matrícula..."
+        placeholder="Digite um nome, matrícula, valor..."
         value={termo}
         onChange={(e) => setTermo(e.target.value)}
         autoFocus
       />
 
       <div className="flex flex-col gap-2">
-        {resultados.map((funcionario) => (
-          <button
-            key={funcionario.id}
-            type="button"
-            onClick={() => void abrirNaNavegacao(funcionario.id)}
-            className="cartao flex items-center justify-between text-left active:scale-[0.98]"
-          >
-            <span className="flex flex-col">
-              <span className="font-semibold text-base-50">{funcionario.nome}</span>
-              <span className="text-sm text-base-400">Mat. {funcionario.matricula}</span>
-            </span>
-            <span className="text-accent-400">➜</span>
-          </button>
+        {resultados.map((resultado) => (
+          <ItemResultado key={resultado.palavra.id} resultado={resultado} onAbrir={abrirResultado} />
         ))}
 
-        {termo.trim() && resultados.length === 0 ? (
-          <p className="text-center text-base-400">Nenhum funcionário encontrado.</p>
+        {buscando && resultados.length === 0 ? (
+          <p className="py-6 text-center text-base-500">Nenhum resultado encontrado.</p>
+        ) : null}
+
+        {!buscando ? (
+          <p className="py-6 text-center text-base-500">Digite algo para pesquisar nas imagens importadas.</p>
         ) : null}
       </div>
     </div>
+  );
+}
+
+function ItemResultado({
+  resultado,
+  onAbrir
+}: {
+  resultado: ResultadoBusca;
+  onAbrir: (resultado: ResultadoBusca) => void;
+}): JSX.Element | null {
+  const imagem = useImagem(resultado.imagemId);
+  if (!imagem) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onAbrir(resultado)}
+      className="cartao flex items-center gap-3 text-left active:scale-[0.98]"
+    >
+      <MiniaturaImagem imagem={imagem} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+      <span className="flex flex-col overflow-hidden">
+        <span className="truncate font-semibold text-base-50">{resultado.textoLinha}</span>
+        <span className="truncate text-sm text-base-400">{imagem.nome}</span>
+      </span>
+    </button>
   );
 }

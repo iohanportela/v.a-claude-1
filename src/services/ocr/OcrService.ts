@@ -1,4 +1,4 @@
-import type { LinhaOcrBruta, OcrResultado } from '@domain/domain';
+import type { LinhaOcrBruta } from '@domain/domain';
 
 /**
  * Contrato que qualquer motor de OCR deve implementar. O restante do
@@ -19,6 +19,4 @@ export interface OcrService {
    * interpretação de domínio (isso é responsabilidade do parser).
    */
   reconhecerLinhas(imagem: Blob): Promise<LinhaOcrBruta[]>;
-
-  reconhecerLinhasComDebug?(imagem: Blob): Promise<OcrResultado>;
 }

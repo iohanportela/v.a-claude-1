@@ -12,10 +12,10 @@
     "cap:open": "npx cap open android"
   },
   "dependencies": {
-    "@capacitor/android": "^8.5.0",
+    "@capacitor/android": "^8.0.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/filesystem": "^8.0.0",
-    "@capacitor/camera": "^8.0.0",
+    "@capacitor/camera": "^8.1.0",
     "@capacitor-mlkit/text-recognition": "^8.2.0",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
@@ -24,7 +24,6 @@
     "react-router-dom": "^6.26.1",
     "zustand": "^4.5.5",
     "tesseract.js": "^5.1.1",
-    "xlsx": "^0.18.5",
     "clsx": "^2.1.1",
     "uuid": "^9.0.1"
   },
