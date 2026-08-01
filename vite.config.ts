@@ -4,6 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
 export default defineConfig({
+  base: '/v.a-claude-1/',
+
   plugins: [
     react(),
     VitePWA({
@@ -17,7 +19,7 @@ export default defineConfig({
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/v.a-claude-1/',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -30,6 +32,7 @@ export default defineConfig({
       }
     })
   ],
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -44,10 +47,12 @@ export default defineConfig({
       '@utils': path.resolve(__dirname, './src/utils')
     }
   },
+
   server: {
     host: true,
     port: 5173
   },
+
   build: {
     target: 'es2020',
     sourcemap: false
